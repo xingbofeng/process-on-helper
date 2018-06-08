@@ -1,6 +1,6 @@
 {
   "name": "process-on-helper",
-  "version": "0.0.2",
+  "version": "0.1.0",
   "description": "help you to add processon files.",
   "main": "app.js",
   "scripts": {

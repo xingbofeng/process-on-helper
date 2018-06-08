@@ -51,14 +51,24 @@ function task(callback) {
       });
     })
     .then(() => intervalGetEmail({ jar, uri: TEMP_MAIL_REFRESH_URL }))
-    .then(processonEmailUrl => clickSuccessRegistProcesson(processonEmailUrl))
-    .then(() => {
+    .then(processonEmailUrl => {
+      if (processonEmailUrl === '') {
+        return Promise.resolve(false);
+      }
+      return clickSuccessRegistProcesson(processonEmailUrl);
+    })
+    .then((b) => {
+      // 如果邮件列表轮询超过次数，超时放弃
+      if (b === false) {
+        return callback();
+      }
       callback();
       console.log(`success ${++times} times.`);
     })
     .catch((err) => {
       console.error(err);
     });
+
 }
 
 program

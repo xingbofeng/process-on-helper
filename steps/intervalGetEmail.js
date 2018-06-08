@@ -5,6 +5,7 @@ const chance = new Chance();
 
 module.exports = function intervalGetEmail({ jar, uri }, callback) {
   let timer = null;
+  let times = 0;
   function intervalGetEmailTimerFunc() {
     request({
       method: 'GET',
@@ -15,10 +16,14 @@ module.exports = function intervalGetEmail({ jar, uri }, callback) {
         return callback(err);
       }
       const $ = cheerio.load(body);
-      if ($('.mailListTable tbody tr').length <= 0) {
+      if ($('.mailListTable tbody tr').length <= 0 && times < 12) {
         console.log('please wait... the processon account is registing.');
-        timer = setTimeout(intervalGetEmailTimerFunc, 1000);
+        times++;
+        timer = setTimeout(intervalGetEmailTimerFunc, 3000);
         return;
+      }
+      if (times >= 12) {
+        return callback(null, '');
       }
       const processonEmailUrl = $('.mailListTable tbody tr td a').attr('href');
       console.log(`processonEmailUrl is ${processonEmailUrl}`);
