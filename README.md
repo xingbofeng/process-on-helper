@@ -15,6 +15,8 @@ ph -l 你的专属邀请链接
 
 ## 效果
 
+![](./images/2.png)
+
 ![](./images/1.png)
 
 ## TODO
