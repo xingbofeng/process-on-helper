@@ -3,7 +3,8 @@
 
 ## 用法
 ```
-node app.js
+npm install -g process-on-helper
+ph -l 你的专属邀请链接
 ```
 
 命令行参数：

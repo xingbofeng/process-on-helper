@@ -4,11 +4,16 @@
   "description": "help you to add processon files.",
   "main": "app.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node bin/ph"
   },
   "keywords": [
     "processon"
   ],
+  "bin": {
+    "ph": "./bin/ph",
+    "type": "git",
+    "process-on-helper": "./bin/ph"
+  },
   "repository": {
     "url": "https://github.com/xingbofeng/process-on-helper"
   },
