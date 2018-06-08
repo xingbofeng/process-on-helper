@@ -1,205 +1,83 @@
 const Chance = require('chance');
 const request = require('request');
 const cheerio = require('cheerio');
+const program = require('commander');
 const chance = new Chance();
+const promisify = require('./utils/promisify');
+const TaskQueue = require('./utils/taskQueue');
+const package = require('./package.json');
 
-const REQUESR_URL = 'https://www.processon.com/i/5b15ff13e4b02e4b26f55930';
+let l;
 const REGIST_URL = 'https://www.processon.com/signup/submit';
 const TEMP_MAIL_CHANGE_URL = 'https://temp-mail.org/zh/option/change/';
 const TEMP_MAIL_REFRESH_URL = 'https://temp-mail.org/zh/option/refresh/';
 
-function getCookie(url, callback) {
-  const jarProcesson = request.jar();
-  request({
-    method: 'GET',
-    uri: url,
-    jar: jarProcesson,
-  }, function(err, response) {
-    if (err) {
-      return callback(err);
-    }
-    callback(null, { jarProcesson });
-    // const path = response.req.path;
-    // if (!path) {
-    //   return callback(new Error(`can't get cookie, please check your url.`));
-    // }
-    // const cookie = path.match(/(?!=jsessionid=)[0-9A-Z]+(?=\.jvm1)/);
-    // if (cookie && cookie[0]) {
-    //   const jSessionId = cookie[0];
-    //   return callback(null, jSessionId);
-    // } else {
-    //   return callback(new Error(`can't get cookie, please check your url.`));
-    // }
-  });
-}
+let getCookie = require('./steps/getCookie');
+let registAccount = require('./steps/registAccount');
+let getTempEmailArgs = require('./steps/getTempEmailArgs');
+let getNewEmail = require('./steps/getNewEmail');
+let intervalGetEmail = require('./steps/intervalGetEmail');
+let clickSuccessRegistProcesson = require('./steps/clickSuccessRegistProcesson');
 
-function registAccount({ jarProcesson, email, password, username }, callback) {
-  // const jar = request.jar();
-  // jar.setCookie(request.cookie(`JSESSIONID=${cookie}`), 'https://www.processon.com');
-  request({
-    method: 'POST',
-    uri: REGIST_URL,
-    jar: jarProcesson,
-    form: {
-      email,
-      pass: password,
-      fullname: username,
-    },
-  }, function(err, response, body) {
-    if (err) {
-      return callback(err);
-    }
-    callback(null, response);
-  });
-}
+let times = 0;
 
-function getTempEmailArgs(url, callback) {
-  const jar = request.jar();
-  request({
-    method: 'GET',
-    uri: url,
-    jar,
-  }, function(err, response, body) {
-    if (err) {
-      return callback(err);
-    }
-    const $ = cheerio.load(body);
-    const formElement = $('.bform > form');
-    const csrf = formElement.find('input[name=csrf]').attr('value').trim();
-    const domain = $('#domain').find('option').attr('value').trim();
-    const name = chance.string({ pool: 'wqertyuiopasdfghjklzxcvbnml' });
-    callback(null, {
-      csrf,
-      domain,
-      name,
-      jar,
-    });
-  });
-}
+getCookie = promisify(getCookie);
+registAccount = promisify(registAccount);
+getTempEmailArgs = promisify(getTempEmailArgs);
+getNewEmail = promisify(getNewEmail);
+intervalGetEmail = promisify(intervalGetEmail);
+clickSuccessRegistProcesson = promisify(clickSuccessRegistProcesson);
 
-function getNewEmail({ uri, csrf, domain, mail, jar }, callback) {
-  request({
-    method: 'POST',
-    uri,
-    jar,
-    form: {
-      mail,
-      csrf,
-      domain,
-    }
-  }, function(err, response, body) {
-    if (err) {
-      return callback(err);
-    }
-    const $ = cheerio.load(body);
-    // 如果有alert-success，则证明成功
-    if ($('.base .alert-success').length <= 0) {
-      return callback(new Error('getNewEmail error, maybe chance name is not success'));
-    }
-    callback(null);
-  });
-}
-
-function intervalGetEmail({ jar, uri }, callback) {
-  let timer = null;
-  function intervalGetEmailTimerFunc() {
-    request({
-      method: 'GET',
-      uri,
-      jar,
-    }, function(err, response, body) {
-      if (err) {
-        return callback(err);
-      }
-      const $ = cheerio.load(body);
-      if ($('.mailListTable tbody tr').length <= 0) {
-        console.log('interval');
-        timer = setTimeout(intervalGetEmailTimerFunc, 1000);
-        return;
-      }
-      const processonEmailUrl = $('.mailListTable tbody tr td a').attr('href');
-      console.log(`processonEmailUrl is ${processonEmailUrl}`);
-      clearTimeout(timer);
-      timer = null;
-      callback(null, processonEmailUrl);
-    });
-  }
-  intervalGetEmailTimerFunc();
-}
-
-function clickSuccessRegistProcesson(uri, callback) {
-  request.get(uri, function(err, response, body) {
-    if (err) {
-      return callback(err);
-    }
-    const $ = cheerio.load(body);
-    const href = $('[data-x-div-type=body] p > [tabindex="-1"]').eq(1).text().trim();
-    if (!href) {
-      return callback(new Error('the email is not ok, please restart'));
-    }
-    request.get(href, function(err, response, body) {
-      if (err) {
-        return callback(err);
-      }
-      callback(null);
-    });
-  });
-}
-
-function main() {
-  let times = 0;
-  getTempEmailArgs(TEMP_MAIL_CHANGE_URL, function(err, { csrf, domain, name, jar }) {
-    if (err) {
-      console.error(err);
-      return;
-    }
-    getNewEmail({
+function task(callback) {
+  let jar = request.jar();
+  getTempEmailArgs(TEMP_MAIL_CHANGE_URL, jar)
+    .then(({ csrf, domain, name }) => getNewEmail({
       uri: TEMP_MAIL_CHANGE_URL,
       csrf,
       domain,
       mail: name,
       jar,
-    }, function(err) {
-      if (err) {
-        console.error(err);
-        return;
-      }
-      getCookie(REQUESR_URL, function(err, { jarProcesson }) {
-        if (err) {
-          console.error(err);
-          return;
-        }
-        const email = `${name}${domain}`;
-        const password = chance.string();
-        const username = chance.string();
-        registAccount({
-          jarProcesson,
-          email,
-          password,
-          username,
-        }, function (err, response) {
-          if (err) {
-            console.error(err);
-            return;
-          }
-          console.log(`send email to temp email, email is ${email}, password is ${password}, username is ${username}`);
-          intervalGetEmail({
-            jar,
-            uri: TEMP_MAIL_REFRESH_URL,
-          }, function(err, processonEmailUrl) {
-            if (err) {
-              console.error(err);
-              return;
-            }
-            clickSuccessRegistProcesson(processonEmailUrl, function() {
-              console.log(`success ${++times} times.`);
-              main();
-            });
-          });
-        });
+    }))
+    .then((email) => getCookie({ url: l, jar, email }))
+    .then((email) => {
+      const password = chance.string();
+      const username = chance.string();
+      return registAccount({
+        jar,
+        email,
+        password,
+        username,
+        uri: REGIST_URL,
       });
+    })
+    .then(() => intervalGetEmail({ jar, uri: TEMP_MAIL_REFRESH_URL }))
+    .then(processonEmailUrl => clickSuccessRegistProcesson(processonEmailUrl))
+    .then(() => {
+      callback();
+      console.log(`success ${++times} times.`);
+    })
+    .catch((err) => {
+      console.error(err);
     });
-  });
 }
 
-main();
+program
+  .version(package.version)
+  .usage(`\r\n  ${package.description}\r\n  Github: ${package.author}\r\n  Repository: ${package.repository.url}`)
+  .option('-v, --version', 'output the version number.')
+  .option('-c, --concurrency <n>', 'set your concurrency, default is 5.', parseInt)
+  .option('-t, --times <n>', 'set your times which is resolved, default is 15, so that add 45 files to your processon.', parseInt)
+  .option('-l, --link <s>', 'set your link find on https://www.processon.com/setting.')
+  .parse(process.argv);
+
+if (!program.link) {
+  console.log('please set your link, you can set it on https://www.processon.com/setting.')
+} else {
+  let c = program.concurrency > 0 ? program.concurrency : 5;
+  let t = program.concurrency > 0 ? program.times : 15;
+  l = program.link;
+  const taskQueue = new TaskQueue(c);
+  for (let i = 0; i < t; i++) {
+    taskQueue.pushTask(task);
+  }
+}

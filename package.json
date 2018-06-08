@@ -1,6 +1,6 @@
 {
   "name": "process-on-helper",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "help you to add processon files.",
   "main": "app.js",
   "scripts": {
@@ -9,11 +9,15 @@
   "keywords": [
     "processon"
   ],
+  "repository": {
+    "url": "https://github.com/xingbofeng/process-on-helper"
+  },
   "author": "counterxing",
   "license": "MIT",
   "dependencies": {
     "chance": "^1.0.16",
     "cheerio": "^1.0.0-rc.2",
+    "commander": "^2.15.1",
     "request": "^2.87.0"
   }
 }
